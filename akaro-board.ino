@@ -4,13 +4,13 @@
 #include <WiFi.h>
 #include <time.h>
 
-#define BTN_DOWN 0
-#define BTN_LEFT 1
-#define BTN_UP 2
-#define BTN_RIGHT 3
+#define BTN_UP 0
+#define BTN_DOWN 1
+#define BTN_LEFT 3
+#define BTN_RIGHT 10  
 
-#define I2C_SDA 8
-#define I2C_SCL 9
+#define I2C_SDA 5
+#define I2C_SCL 6
 
 #define WIFI_SSID "zte10"
 #define WIFI_PASSWORD "3963939639"
@@ -107,7 +107,7 @@ void init()
   u8g2.clearBuffer();
 
   u8g2.setFont(u8g2_font_tenthinguys_tr);
-  u8g2.drawStr((128 - u8g2.getUTF8Width("esp-board")) / 2, 37, "esp-board");
+  u8g2.drawStr((128 - u8g2.getUTF8Width("akaro-board")) / 2, 37, "akaro-board");
 
   u8g2.setFont(u8g2_font_tiny5_tf);
   u8g2.drawStr((128 - u8g2.getUTF8Width("loading...")) / 2, 47, "loading...");
@@ -165,6 +165,11 @@ void input()
     {
       current_item--;
     }
+  }
+
+  else if((cur_btn_left == LOW && prev_btn_left == HIGH) && (cur_btn_right == LOW && prev_btn_right == HIGH)){
+    u8g2.drawStr(10, 10, "YES!");
+    u8g2.sendBuffer();
   }
 
   delay(20);
