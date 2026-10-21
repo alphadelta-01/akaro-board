@@ -4,10 +4,12 @@
 #include <WiFi.h>
 #include <time.h>
 
-#define BTN_UP 0
-#define BTN_DOWN 1
-#define BTN_LEFT 3
-#define BTN_RIGHT 10  
+#define BTN_UP 1
+#define BTN_DOWN 3
+#define BTN_LEFT 0
+#define BTN_RIGHT 4
+#define BTN_ACCEPT 10
+#define BTN_CANCEL 7
 
 #define I2C_SDA 5
 #define I2C_SCL 6
@@ -50,6 +52,13 @@ const char *SETTINGS_ITEMS[] = {
 
 const int8_t SETTINGS_ITEMS_COUNT = sizeof(SETTINGS_ITEMS) / sizeof(SETTINGS_ITEMS[0]);
 
+const char *MAIN_MENU_ITEMS[] = {
+    "EXTRAS",
+    "GAMES",
+    "SETTINGS"};
+
+const int8_t MAIN_MENU_ITEMS_COUNT = sizeof(MAIN_MENU_ITEMS) / sizeof(MAIN_MENU_ITEMS[0]);
+
 enum AppState
 {
   MainMenu,
@@ -66,7 +75,6 @@ struct tm timeInfo;
 
 void syncTime()
 {
-
   WiFi.mode(WIFI_STA);
   WiFi.setTxPower(WIFI_POWER_8_5dBm);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -135,7 +143,16 @@ void input()
   switch (APP_STATE)
   {
   case MainMenu:
-    max_items = 2;
+    max_items = MAIN_MENU_ITEMS_COUNT - 1;
+    break;
+  case Extras:
+    max_items = EXTRAS_ITEMS_COUNT - 1;
+    break;
+  case Games:
+    max_items = GAMES_ITEMS_COUNT - 1;
+    break;
+  case Settings:
+    max_items = SETTINGS_ITEMS_COUNT - 1;
     break;
 
   default:
@@ -146,11 +163,15 @@ void input()
   static int8_t prev_btn_down = HIGH;
   static int8_t prev_btn_left = HIGH;
   static int8_t prev_btn_right = HIGH;
+  static int8_t prev_btn_accept = HIGH;
+  static int8_t prev_btn_cancel = HIGH;
 
   int8_t cur_btn_up = digitalRead(BTN_UP);
   int8_t cur_btn_down = digitalRead(BTN_DOWN);
   int8_t cur_btn_left = digitalRead(BTN_LEFT);
   int8_t cur_btn_right = digitalRead(BTN_RIGHT);
+  int8_t cur_btn_accept = digitalRead(BTN_ACCEPT);
+  int8_t cur_btn_cancel = digitalRead(BTN_CANCEL);
 
   if (cur_btn_down == LOW && prev_btn_down == HIGH)
   {
@@ -166,10 +187,52 @@ void input()
       current_item--;
     }
   }
+  else if (cur_btn_accept == LOW && prev_btn_accept == HIGH)
+  {
+    switch (APP_STATE)
+    {
+    case MainMenu:
+      switch (current_item)
+      {
+      case 0:
+        APP_STATE = Extras;
+        current_item = 0;
+        break;
+      case 1:
+        APP_STATE = Games;
+        current_item = 0;
+        break;
+      case 2:
+        APP_STATE = Settings;
+        current_item = 0;
+        break;
+      }
+      break;
 
-  else if((cur_btn_left == LOW && prev_btn_left == HIGH) && (cur_btn_right == LOW && prev_btn_right == HIGH)){
-    u8g2.drawStr(10, 10, "YES!");
-    u8g2.sendBuffer();
+    default:
+      break;
+    }
+  }
+  else if (cur_btn_cancel == LOW && prev_btn_cancel == HIGH)
+  {
+    switch (APP_STATE)
+    {
+    case Extras:
+      APP_STATE = MainMenu;
+      current_item = 0;
+      break;
+    case Games:
+      APP_STATE = MainMenu;
+      current_item = 0;
+      break;
+    case Settings:
+      APP_STATE = MainMenu;
+      current_item = 0;
+      break;
+
+    default:
+      break;
+    }
   }
 
   delay(20);
@@ -178,22 +241,32 @@ void input()
   prev_btn_down = cur_btn_down;
   prev_btn_left = cur_btn_left;
   prev_btn_right = cur_btn_right;
+  prev_btn_accept = cur_btn_accept;
+  prev_btn_cancel = cur_btn_cancel;
 }
 
-void menuDraw(const char *name, int8_t itemsDraw)
+void menuDraw(const char **name, int8_t itemsDraw)
 {
   u8g2.clearBuffer();
 
   statusBarDraw();
 
-  u8g2.drawRFrame((128 - 54) / 2, 10, 54, 36, 5);
+  const int offset_y = current_item * 128;
 
-  u8g2.setFont(u8g2_font_tenthinguys_tr);
+  for (int8_t i = 0; i < itemsDraw; i++)
+  {
+    int item_y = i * 128 - offset_y;
 
-  int8_t textWidth = u8g2.getUTF8Width(name);
-  int8_t x = (128 - textWidth) / 2;
+    u8g2.drawRFrame((128 - 54) / 2, item_y + 10, 54, 36, 5);
 
-  u8g2.drawStr(x, 60, name);
+    u8g2.setFont(u8g2_font_tenthinguys_tr);
+
+    int8_t textWidth = u8g2.getUTF8Width(name[i]);
+    int8_t x = (128 - textWidth) / 2;
+
+    u8g2.drawStr(x, item_y + 60, name[i]);
+    item_y += 128;
+  }
 
   for (int8_t i = 0; i < itemsDraw; i++)
   {
@@ -210,23 +283,28 @@ void menuDraw(const char *name, int8_t itemsDraw)
   delay(16);
 }
 
-void drawAllMenu()
+void drawAllMenus()
 {
   switch (APP_STATE)
   {
   case MainMenu:
-    switch (current_item)
-    {
-    case 0:
-      menuDraw("Extras", 3);
-      break;
-    case 1:
-      menuDraw("Games", 3);
-      break;
-    case 2:
-      menuDraw("Settings", 3);
-      break;
-    }
+    menuDraw(MAIN_MENU_ITEMS, MAIN_MENU_ITEMS_COUNT);
+    break;
+
+  case Extras:
+    menuDraw(EXTRAS_ITEMS, EXTRAS_ITEMS_COUNT);
+    break;
+
+  case Games:
+    menuDraw(GAMES_ITEMS, GAMES_ITEMS_COUNT);
+    break;
+
+  case Settings:
+    menuDraw(SETTINGS_ITEMS, SETTINGS_ITEMS_COUNT);
+    break;
+
+  default:
+    break;
   }
 }
 
@@ -236,15 +314,17 @@ void setup()
   pinMode(BTN_LEFT, INPUT_PULLUP);
   pinMode(BTN_UP, INPUT_PULLUP);
   pinMode(BTN_RIGHT, INPUT_PULLUP);
+  pinMode(BTN_ACCEPT, INPUT_PULLUP);
+  pinMode(BTN_CANCEL, INPUT_PULLUP);
 
   init();
 }
 
 void loop()
 {
+  drawAllMenus();
   updateClock();
   input();
-  drawAllMenu();
 }
 
 // compile = arduino-cli compile -b esp32:esp32:esp32c3 -u -p (YOUR COM-PORT - arduino-cli board list)
