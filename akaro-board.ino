@@ -73,6 +73,16 @@ U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE, I2C_SCL, I2C_SD
 
 struct tm timeInfo;
 
+void deepsleep(){
+  u8g2.setPowerSave(1);
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+
+  esp_err_t err = esp_deep_sleep_enable_gpio_wakeup(1ULL << BTN_DOWN, ESP_GPIO_WAKEUP_GPIO_LOW);
+
+  esp_deep_sleep_start();
+}
+
 void syncTime()
 {
   WiFi.mode(WIFI_STA);
@@ -136,8 +146,37 @@ void statusBarDraw()
   u8g2.drawStr(3, 7, clockText);
 }
 
+bool deepsleepBind(){
+  static uint32_t chordStartTime = 0;
+  static bool chordActive = false;
+
+  bool chordDown = digitalRead(BTN_ACCEPT) == LOW && digitalRead(BTN_CANCEL) == LOW;
+
+  if(!chordDown){
+    chordStartTime = 0;
+    chordActive = false;
+    return false;
+  }
+
+  if(chordStartTime == 0){
+    chordStartTime = millis();
+    return false;
+  }
+
+  if(!chordActive && (millis() - chordStartTime >= 2000)){
+    chordActive = true;
+    return true;
+  }
+  return false;
+}
+
 void input()
 {
+  if(deepsleepBind()){
+    deepsleep();
+    return;
+  }
+
   int8_t max_items = 0;
 
   switch (APP_STATE)
@@ -205,6 +244,15 @@ void input()
       case 2:
         APP_STATE = Settings;
         current_item = 0;
+        break;
+      }
+      break;
+
+    case Settings:
+      switch (current_item)
+      {
+      case 4:
+        deepsleep();
         break;
       }
       break;
